@@ -2,7 +2,7 @@ import streamlit as st
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain.vectorstores import FAISS
+from langchain_community.vectorstores import FAISS
 from langchain.llms.base import LLM
 from typing import List
 from groq import Groq
@@ -10,22 +10,92 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
-# ------------ CONFIGURATION PAGE ------------
+import streamlit as st
+from langchain.chains import RetrievalQA
+from langchain.prompts import PromptTemplate
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_community.vectorstores import FAISS
+from langchain.llms.base import LLM
+from typing import List
+from groq import Groq
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+# ------------ CONFIGURATION PAGE (mode clair) ------------
 st.set_page_config(page_title="Chatbot Juridique SN", page_icon="⚖️", layout="wide")
 
+# Style clair : suppression du CSS sombre
+st.markdown("""
+    <style>
+        .stTextInput>div>input {
+            border-radius: 25px;
+            padding: 16px;
+            font-size: 18px;
+            border: 1px solid #ccc;
+        }
+        .block-container {
+            padding-top: 2rem;
+        }
+        h1 {
+            color: #1a1a1a !important;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+
+# ------------ TITRE & PRÉSENTATION ------------
 col1, col2 = st.columns([1, 8])
 with col1:
-    st.image("drapeau justicesn.jpg", width=150)
+    st.image("drapeau justicesn.jpg", width=120)
 with col2:
     st.markdown("""
-        <h1 style='margin-top: 25px; font-size: 36px; color: #003366;'>
-            LexSN : Votre assistant juridique de recherche documentaire
+        <h1 style='margin-top: 30px; font-size: 36px;'>
+            LexSen : VOTRE ASSISTANT JURIDIQUE SÉNÉGALAIS
         </h1>
     """, unsafe_allow_html=True)
 
 st.divider()
 
-# ------------ CLASSE PERSONNALISÉE GROQLLM ------------
+# ------------ SIDEBAR INFO ------------
+with st.sidebar:
+    st.title("ℹ️ Informations")
+    st.markdown("""
+    **📚 Domaines de droit prises en charge :**
+                
+    - Droit civil et procédure civile
+    - Droit pénal et procédure pénale
+    - Droit social 
+    - Organisation judiciaire
+    - Organisation de l’administration
+    - Droit OHADA
+
+    **📞 Assistance technique :**
+    - WhatsApp : +221 77 339 76 94
+
+    ℹ️ **Dernière mise à jour des textes : Avril 2025**
+    """)
+
+st.markdown("""
+    <div style='
+        background-color: #f9f9f9;
+        padding: 20px;
+        border-radius: 12px;
+        border: 1px solid #ddd;
+        font-size: 20px;
+        line-height: 1.6;
+        margin-bottom: 25px;
+    '>
+        👋 Bonjour ! Je suis <strong>LexSen</strong>, votre assistant juridique spécialisé dans le droit sénégalais.<br><br>
+        Posez-moi vos questions sur :
+        <ul>
+            <li>📘 Le code de la famille ou du travail </li>
+            <li>⚖️ Le code pénal et la procédure pénale</li>
+            <li>📄 Les lois, décrets, arrêtés etc.</li>
+    </div>
+""", unsafe_allow_html=True)
+
+# ------------ CLASSE LLM ------------
 class GroqLLM(LLM):
     model: str = "llama-3.3-70b-versatile"
     temperature: float = 0.2
@@ -44,7 +114,7 @@ class GroqLLM(LLM):
         )
         return response.choices[0].message.content
 
-# ------------ CHARGEMENT CHAINE RAG ------------
+# ------------ CHARGE LA CHAINE RAG ------------
 @st.cache_resource
 def load_qa_chain():
     embedding_model = HuggingFaceEmbeddings(
@@ -52,7 +122,7 @@ def load_qa_chain():
         model_kwargs={"trust_remote_code": True},
         encode_kwargs={"normalize_embeddings": True}
     )
-    db = FAISS.load_local("faiss_index", embedding_model,allow_dangerous_deserialization=True)
+    db = FAISS.load_local("faiss_index", embedding_model, allow_dangerous_deserialization=True)
 
     prompt_template = PromptTemplate.from_template("""
 Tu es un assistant juridique spécialisé dans les textes de loi du Sénégal (Code de la famille, Code pénal, décrets, lois, etc).
@@ -77,6 +147,7 @@ Question : {question}
 Réponse :
     """)
 
+
     llm = GroqLLM()
     return RetrievalQA.from_chain_type(
         llm=llm,
@@ -87,9 +158,10 @@ Réponse :
 
 qa_chain = load_qa_chain()
 
-# ------------ AFFICHAGE MESSAGES ------------
+# ------------ AFFICHAGE DES MESSAGES ------------
 USER_ICON = ""
 BOT_ICON = "⚖️"
+
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -99,7 +171,7 @@ def message_bulle(texte, role="user"):
     st.markdown(f"""
         <div style='display: flex; align-items: flex-start; margin-bottom: 10px;'>
             <div style='font-size: 30px; margin-right: 10px;'>{icon}</div>
-            <div style='background-color:{bubble_color}; padding:15px; border-radius:12px; max-width: 80%; font-size: 22px;'>
+            <div style='background-color:{bubble_color}; padding:15px; border-radius:12px; max-width: 85%; font-size: 20px; color: #000;'>
                 {texte}
             </div>
         </div>
@@ -108,65 +180,40 @@ def message_bulle(texte, role="user"):
 for m in st.session_state.messages:
     message_bulle(m["content"], m["role"])
 
-# ------------ INPUT UTILISATEUR ------------
-st.markdown("""
-    <style>
-        .stTextInput>div>input {
-            border-radius: 25px;
-            padding: 16px;
-            font-size: 22px;
-            border: 1px solid #ccc;
-        }
-        button[kind="primary"] {
-            display: none;
-        }
-    </style>
-""", unsafe_allow_html=True)
-
+# ------------ ZONE INPUT UTILISATEUR ------------
 with st.form("chat_form", clear_on_submit=True):
-    user_input = st.text_input("Pose ta question sur le droit sénégalais :", "", placeholder="Ex: Quels sont les droits des femmes dans le code de la famille ?")
+    user_input = st.text_input("Posez votre question juridique :", "", placeholder="Ex: Quels sont les droits des femmes dans le code de la famille ?")
     submit = st.form_submit_button("Envoyer")
 
 if submit and user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
-
     with st.spinner("Recherche juridique en cours..."):
-        import time
-        start = time.time()
         result = qa_chain.invoke(user_input)
-        elapsed = time.time() - start
-
         reponse = result["result"]
         sources = result["source_documents"]
 
-    st.session_state.messages.append({"role": "bot", "content": reponse})
+    st.session_state.messages.append({"role": "assistant", "content": reponse})
 
-    # Affichage des sources
+    # Affiche 2 sources max
     unique_seen = set()
     limited_sources_list = []
-
     for doc in sources:
         meta = doc.metadata
         source_id = meta.get("document_title", "") + meta.get("chunk_title", "")
         if source_id not in unique_seen:
-            folder = meta.get("folder", "Sans sous-dossier")
+            folder = meta.get("folder", "Sans dossier")
             title = meta.get("chunk_title", "Sans titre")
-            source = meta.get("document_title", "Inconnu")
-            url = meta.get("source_url", "Source inconnue")
-            label = f"📚 {folder}/{source} / {title}\n→ {url}"
+            source = meta.get("document_title", "Document inconnu")
+            url = meta.get("source_url", "")
+            label = f"📚 {folder} / {source} / {title}\n→ {url}"
             limited_sources_list.append(label)
             unique_seen.add(source_id)
         if len(limited_sources_list) == 2:
             break
 
     st.session_state.messages.append({
-        "role": "bot",
+        "role": "assistant",
         "content": "🔎 Sources utilisées :\n\n" + "\n\n".join(limited_sources_list)
-    })
-
-    st.session_state.messages.append({
-        "role": "bot",
-        "content": f"⏱️ Réponse générée en **{elapsed:.2f} secondes**"
     })
 
     st.rerun()
