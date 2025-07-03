@@ -77,8 +77,10 @@ st.markdown("""
             <li>📘 Le code de la famille ou du travail </li>
             <li>⚖️ Le code pénal et la procédure pénale</li>
             <li>📄 Les lois, décrets, arrêtés etc.</li>
+        </ul>
     </div>
 """, unsafe_allow_html=True)
+
 
 # -------- CLASSE GROQLLM --------
 class GroqLLM(LLM):
