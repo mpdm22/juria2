@@ -10,22 +10,9 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
-import streamlit as st
-from langchain.chains import RetrievalQA
-from langchain.prompts import PromptTemplate
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_community.vectorstores import FAISS
-from langchain.llms.base import LLM
-from typing import List
-from groq import Groq
-import os
-from dotenv import load_dotenv
-load_dotenv()
-
 # ------------ CONFIGURATION PAGE (mode clair) ------------
 st.set_page_config(page_title="Chatbot Juridique SN", page_icon="⚖️", layout="wide")
 
-# Style clair : suppression du CSS sombre
 st.markdown("""
     <style>
         .stTextInput>div>input {
@@ -42,7 +29,6 @@ st.markdown("""
         }
     </style>
 """, unsafe_allow_html=True)
-
 
 # ------------ TITRE & PRÉSENTATION ------------
 col1, col2 = st.columns([1, 8])
@@ -62,7 +48,6 @@ with st.sidebar:
     st.title("ℹ️ Informations")
     st.markdown("""
     **📚 Domaines de droit prises en charge :**
-                
     - Droit civil et procédure civile
     - Droit pénal et procédure pénale
     - Droit social 
@@ -137,6 +122,7 @@ Consignes strictes :
 - Ne fais aucune supposition ni déduction en dehors des textes.
 - N'invente jamais de références, de lois, ni de liens.
 - Si l’information n’est pas présente, dis simplement : « Je suis désolé, mais aucun extrait de document en ma possession ne semble contenir une réponse claire à cette question. »
+- Si la question est une salutation (bonjour, salut, etc.), réponds simplement avec une formule de politesse adaptée.
 - Utilise un ton neutre, factuel et professionnel mais des réponses longues et explicatives.
 - Réponds dans la langue de la question posée : français ou anglais.
 
@@ -146,7 +132,6 @@ Question : {question}
 
 Réponse :
     """)
-
 
     llm = GroqLLM()
     return RetrievalQA.from_chain_type(
@@ -180,6 +165,27 @@ def message_bulle(texte, role="user"):
 for m in st.session_state.messages:
     message_bulle(m["content"], m["role"])
 
+# ------------ DÉTECTION DES CAS SANS SOURCES ------------
+def should_show_sources(question: str, response: str) -> bool:
+    """Détermine si les sources doivent être affichées."""
+    phrases_absence = [
+        "Je suis désolé, mais aucun extrait de document en ma possession ne semble contenir une réponse claire à cette question.",
+        "I'm sorry, but none of the excerpts in my possession appear to contain a clear answer to this question."
+    ]
+
+    salutations = ["bonjour", "salut", "bonsoir", "hello", "hi", "hey"]
+
+    # Cas 1 : la réponse indique une absence d'information
+    for phrase in phrases_absence:
+        if phrase.lower() in response.lower():
+            return False
+
+    # Cas 2 : la question est une salutation
+    if question.strip().lower() in salutations:
+        return False
+
+    return True
+
 # ------------ ZONE INPUT UTILISATEUR ------------
 with st.form("chat_form", clear_on_submit=True):
     user_input = st.text_input("Posez votre question juridique :", "", placeholder="Ex: Quels sont les droits des femmes dans le code de la famille ?")
@@ -194,26 +200,26 @@ if submit and user_input:
 
     st.session_state.messages.append({"role": "assistant", "content": reponse})
 
-    # Affiche 2 sources max
-    unique_seen = set()
-    limited_sources_list = []
-    for doc in sources:
-        meta = doc.metadata
-        source_id = meta.get("document_title", "") + meta.get("chunk_title", "")
-        if source_id not in unique_seen:
-            folder = meta.get("folder", "Sans dossier")
-            title = meta.get("chunk_title", "Sans titre")
-            source = meta.get("document_title", "Document inconnu")
-            url = meta.get("source_url", "")
-            label = f"📚 {folder} / {source} / {title}\n→ {url}"
-            limited_sources_list.append(label)
-            unique_seen.add(source_id)
-        if len(limited_sources_list) == 2:
-            break
+    if should_show_sources(user_input, reponse):
+        unique_seen = set()
+        limited_sources_list = []
+        for doc in sources:
+            meta = doc.metadata
+            source_id = meta.get("document_title", "") + meta.get("chunk_title", "")
+            if source_id not in unique_seen:
+                folder = meta.get("folder", "Sans dossier")
+                title = meta.get("chunk_title", "Sans titre")
+                source = meta.get("document_title", "Document inconnu")
+                url = meta.get("source_url", "")
+                label = f"📚 {folder} / {source} / {title}\n→ {url}"
+                limited_sources_list.append(label)
+                unique_seen.add(source_id)
+            if len(limited_sources_list) == 2:
+                break
 
-    st.session_state.messages.append({
-        "role": "assistant",
-        "content": "🔎 Sources utilisées :\n\n" + "\n\n".join(limited_sources_list)
-    })
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": "🔎 Sources utilisées :\n\n" + "\n\n".join(limited_sources_list)
+        })
 
     st.rerun()
