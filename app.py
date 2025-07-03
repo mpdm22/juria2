@@ -80,7 +80,7 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# ------------ CLASSE LLM ------------
+# -------- CLASSE GROQLLM --------
 class GroqLLM(LLM):
     model: str = "llama-3.3-70b-versatile"
     temperature: float = 0.2
@@ -99,17 +99,8 @@ class GroqLLM(LLM):
         )
         return response.choices[0].message.content
 
-# ------------ CHARGE LA CHAINE RAG ------------
-@st.cache_resource
-def load_qa_chain():
-    embedding_model = HuggingFaceEmbeddings(
-        model_name="Alibaba-NLP/gte-multilingual-base",
-        model_kwargs={"trust_remote_code": True},
-        encode_kwargs={"normalize_embeddings": True}
-    )
-    db = FAISS.load_local("faiss_index", embedding_model, allow_dangerous_deserialization=True)
-
-    prompt_template = PromptTemplate.from_template("""
+# -------- PROMPT GLOBAL --------
+prompt_template = PromptTemplate.from_template("""
 Tu es un assistant juridique spécialisé dans les textes de loi du Sénégal (Code de la famille, Code pénal, décrets, lois, etc).
 
 Ta mission est de répondre de manière claire, concise et fiable à des questions posées par un utilisateur en t'appuyant exclusivement sur les extraits de documents juridiques suivants :
@@ -131,8 +122,21 @@ Consignes strictes :
 Question : {question}
 
 Réponse :
-    """)
+""")
 
+# -------- CACHER UNIQUEMENT LE CHARGEMENT DE FAISS --------
+@st.cache_resource
+def load_faiss_index():
+    embedding_model = HuggingFaceEmbeddings(
+        model_name="Alibaba-NLP/gte-multilingual-base",
+        model_kwargs={"trust_remote_code": True},
+        encode_kwargs={"normalize_embeddings": True}
+    )
+    return FAISS.load_local("faiss_index", embedding_model, allow_dangerous_deserialization=True)
+
+# -------- CHARGER LA CHAÎNE RAG --------
+def load_qa_chain():
+    db = load_faiss_index()
     llm = GroqLLM()
     return RetrievalQA.from_chain_type(
         llm=llm,
@@ -140,6 +144,7 @@ Réponse :
         return_source_documents=True,
         chain_type_kwargs={"prompt": prompt_template}
     )
+
 
 qa_chain = load_qa_chain()
 
