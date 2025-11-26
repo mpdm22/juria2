@@ -1,5 +1,5 @@
 streamlit
-langchain
+langchain==0.1.20
 langchain-community
 langchain-huggingface
 transformers
